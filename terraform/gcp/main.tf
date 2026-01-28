@@ -10,6 +10,10 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
     }
+    external = {
+      source  = "hashicorp/external"
+      version = "~> 2.3"
+    }
   }
 }
 
@@ -17,6 +21,18 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+}
+
+# Get current project configuration (needed for Docker registry auth)
+data "google_client_config" "default" {}
+
+# Get home directory for macOS Docker Desktop socket path (works for all Mac users)
+data "external" "home" {
+  program = ["sh", "-c", "echo '{\"home\":\"'$HOME'\"}'"]
+}
+
+locals {
+  docker_socket_path = "${data.external.home.result.home}/.docker/run/docker.sock"
 }
 
 # Enable required APIs
@@ -36,16 +52,16 @@ resource "google_project_service" "cloudbuild" {
 }
 
 # Configure Docker provider to use GCR
+# Uses macOS Docker Desktop socket path (works for all Mac users via $HOME)
 provider "docker" {
+  host = "unix://${local.docker_socket_path}"
+  
   registry_auth {
     address  = "${var.region}-docker.pkg.dev"
     username = "oauth2accesstoken"
     password = data.google_client_config.default.access_token
   }
 }
-
-# Get current project configuration
-data "google_client_config" "default" {}
 
 # Create Artifact Registry repository
 resource "google_artifact_registry_repository" "app" {

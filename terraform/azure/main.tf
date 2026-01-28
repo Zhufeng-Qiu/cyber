@@ -30,10 +30,17 @@ resource "random_string" "acr_suffix" {
   numeric = true
   special = false
 }
+
+# Get home directory for macOS Docker Desktop socket path (works for all Mac users)
+data "external" "home" {
+  program = ["sh", "-c", "echo '{\"home\":\"'$HOME'\"}'"]
+}
+
 locals {
   acr_basename = replace(var.project_name, "-", "") // only letters/numbers
   // keep base to <= 40 so base+6 <= 46 (under 50 char limit)
   acr_name     = "${substr(local.acr_basename, 0, 40)}${random_string.acr_suffix.result}"
+  docker_socket_path = "${data.external.home.result.home}/.docker/run/docker.sock"
 }
 
 # Use existing resource group
@@ -56,7 +63,9 @@ resource "azurerm_container_registry" "acr" {
 }
 
 # Configure Docker provider to use ACR
+# Uses macOS Docker Desktop socket path (works for all Mac users via $HOME)
 provider "docker" {
+  host = "unix://${local.docker_socket_path}"
   registry_auth {
     address  = azurerm_container_registry.acr.login_server
     username = azurerm_container_registry.acr.admin_username

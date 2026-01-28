@@ -65,6 +65,8 @@ def check_api_keys() -> None:
     """Verify required API keys are configured."""
     if not os.getenv("OPENAI_API_KEY"):
         raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+    if not os.getenv("SEMGREP_APP_TOKEN"):
+        raise HTTPException(status_code=500, detail="SEMGREP_APP_TOKEN not configured")
 
 
 def create_security_agent(semgrep_server) -> Agent:
